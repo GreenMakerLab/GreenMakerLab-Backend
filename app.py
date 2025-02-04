@@ -17,7 +17,7 @@ app = Flask(__name__, static_folder='../dist', static_url_path='')
 
 CORS(
     app,
-    resources={r"/api/*": {"origins": ["http://localhost:5173", "https://GreenMakerLab.onrender.com"]}},
+    resources={r"/api/*": {"origins": ["http://localhost:5173", "https://greenmakerlab.onrender.com"]}},
     supports_credentials=True,
     allow_headers=["Authorization", "Content-Type"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
