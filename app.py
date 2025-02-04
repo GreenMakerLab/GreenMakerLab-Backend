@@ -5,16 +5,15 @@ import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
-from datetime import timedelta
-
-
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='../dist', static_url_path='')
+# Configuração do Flask para servir arquivos estáticos da pasta 'dist'
+app = Flask(__name__, static_folder='dist', static_url_path='')
 
+# Configuração do CORS para permitir requisições de origens específicas
 CORS(
     app,
     resources={r"/api/*": {"origins": ["http://localhost:5173", "https://greenmakerlab.onrender.com"]}},
@@ -23,10 +22,12 @@ CORS(
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
+# Configurações de segurança e JWT
 app.config['JWT_SECRET_KEY'] = secrets.token_hex(16)
 jwt = JWTManager(app)
-
 app.secret_key = secrets.token_hex(16)
+
+# Configuração do SQLAlchemy (o DATABASE_URL deve estar definido no .env)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -38,9 +39,9 @@ class Articles(db.Model):
     resume = db.Column(db.String, nullable=False)
     content = db.Column(db.String, nullable=False)
     doi = db.Column(db.String)
-    date = db.Column(db.Date, nullable=False,)
-    
-# Modelo do Usuario 
+    date = db.Column(db.Date, nullable=False)
+
+# Modelo do Usuário
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
@@ -52,7 +53,7 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-# Cria o banco de dados e insere o usuário admin (se não existir)
+# Criação do banco de dados e inserção do usuário admin, se não existir
 with app.app_context():
     db.create_all()
     admin_username = os.environ.get('ADMIN_USERNAME')
@@ -67,7 +68,6 @@ with app.app_context():
         db.session.add(admin_user)
         db.session.commit()
 
-
 # Endpoint de login
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -78,9 +78,9 @@ def login():
     user = User.query.filter_by(username=username).first()
 
     # Verifica se o usuário existe e se a senha está correta
-    if user and check_password_hash(user.password_hash, password):
-        # Cria um token de acesso
-        access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=1))   
+    if user and user.check_password(password):
+        # Cria um token de acesso com validade de 1 hora
+        access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=1))
         return jsonify({
             'message': 'Login realizado com sucesso!',
             'access_token': access_token
@@ -90,11 +90,12 @@ def login():
 
 # Endpoint do admin
 @app.route('/api/admin', methods=['GET'])
-@jwt_required()  
+@jwt_required()
 def admin_route():
     try:
         user_id = get_jwt_identity()
-        user = db.session.get(User, user_id) 
+        # Utilizando User.query.get() para compatibilidade
+        user = User.query.get(user_id)
 
         if not user:
             return jsonify({"message": "Usuário não encontrado!"}), 404
@@ -105,10 +106,9 @@ def admin_route():
         })
     
     except Exception as e:
-        print("Erro em /api/admin:", str(e))  
+        print("Erro em /api/admin:", str(e))
         return jsonify({"message": "Erro interno do servidor"}), 500
-    
-    
+
 # Endpoint para listar artigos
 @app.route('/api/articles', methods=['GET'])
 def get_articles():
@@ -129,10 +129,11 @@ def create_article():
     data = request.get_json()
 
     # Validação dos campos obrigatórios
-    if not data or 'title' not in data or 'resume' not in data or 'content' not in data or 'date' not in data:
+    required_fields = ['title', 'resume', 'content', 'date']
+    if not data or not all(field in data for field in required_fields):
         return jsonify({
             'message': 'Campos obrigatórios faltando!',
-            'missing_fields': ['title', 'resume', 'content', 'date']
+            'missing_fields': required_fields
         }), 400
 
     try:
@@ -147,7 +148,7 @@ def create_article():
         db.session.commit()
         return jsonify({
             'message': 'Artigo criado com sucesso!',
-            'article_id': new_article.id  
+            'article_id': new_article.id
         }), 201
     except Exception as e:
         db.session.rollback()
@@ -155,7 +156,7 @@ def create_article():
             'message': 'Erro interno do servidor',
             'error': str(e)
         }), 500
-        
+
 # Endpoint para excluir um artigo
 @app.route('/api/articles/<int:id>', methods=['DELETE'])
 @jwt_required()
@@ -165,16 +166,19 @@ def delete_article(id):
     db.session.commit()
     return jsonify({'message': 'Artigo deletado com sucesso!'})
 
-
+# Rota para servir o index.html
 @app.route('/')
 def serve_home():
     return send_from_directory(app.static_folder, 'index.html')
 
+# Rota para servir arquivos estáticos e fallback para index.html se não existir o arquivo
 @app.route('/<path:path>')
 def serve_static(path):
-    if os.path.exists(os.path.join(app.static_folder, path)):
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
+
 if __name__ == '__main__':
     app.run()
