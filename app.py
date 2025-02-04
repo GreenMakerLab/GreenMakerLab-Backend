@@ -170,10 +170,6 @@ def delete_article(id):
 def serve_home():
     return send_from_directory(app.static_folder, 'index.html')
 
-@app.route('/team')
-def team():
-    return send_from_directory(app.static_folder, 'team.html')
-
 @app.route('/<path:path>')
 def serve_static(path):
     if os.path.exists(os.path.join(app.static_folder, path)):
@@ -181,4 +177,4 @@ def serve_static(path):
     else:
         return send_from_directory(app.static_folder, 'index.html')
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
