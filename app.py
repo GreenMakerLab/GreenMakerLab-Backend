@@ -16,7 +16,7 @@ app = Flask(__name__, static_folder='dist', static_url_path='')
 # Configuração do CORS para permitir requisições de origens específicas
 CORS(
     app,
-    resources={r"/api/*": {"origins": ["http://localhost:5173", "https://greenmakerlab.onrender.com"]}},
+    resources={r"/api/*": {"origins": ["https://greenmakerlab.com", "https://greenmakerlab.onrender.com"]}},
     supports_credentials=True,
     allow_headers=["Authorization", "Content-Type"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -79,7 +79,7 @@ def login():
 
     # Verifica se o usuário existe e se a senha está correta
     if user and user.check_password(password):
-        # Cria um token de acesso com validade de 1 hora
+        # Cria o token de acesso
         access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=1))
         return jsonify({
             'message': 'Login realizado com sucesso!',
@@ -94,7 +94,6 @@ def login():
 def admin_route():
     try:
         user_id = get_jwt_identity()
-        # Utilizando User.query.get() para compatibilidade
         user = User.query.get(user_id)
 
         if not user:
