@@ -16,7 +16,7 @@ app = Flask(__name__, static_folder='dist', static_url_path='')
 # Configuração do CORS para permitir requisições de origens específicas
 CORS(
     app,
-    resources={r"/api/*": {"origins": ["https://greenmakerlab.com", "https://greenmakerlab.onrender.com"]}},
+    resources={r"/api/*": {"origins": ["https://greenmakerlab.com", "http://localhost:5173/", "https://greenmakerlab.onrender.com"]}},
     supports_credentials=True,
     allow_headers=["Authorization", "Content-Type"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -120,7 +120,7 @@ def get_articles():
         'doi': article.doi,
         'date': article.date.isoformat()
     } for article in articles])
-
+    
 # Endpoint para criar um novo artigo
 @app.route('/api/articles', methods=['POST'])
 @jwt_required()
@@ -165,6 +165,38 @@ def delete_article(id):
     db.session.commit()
     return jsonify({'message': 'Artigo deletado com sucesso!'})
 
+#Endpoint para altera um artigo
+@app.route('/api/articles/<int:id>', methods=['PUT'])
+@jwt_required()
+def change_article(id):
+    article = Articles.query.get_or_404(id)
+    data = request.get_json()
+    
+    allowed_fields = ['title', 'resume', 'content', 'doi', 'date']
+    if not data or not any (field in data for field in allowed_fields):
+        return jsonify({
+            'message': "Nenhum campo fornecido para a alteração",
+            'allowed_fields': allowed_fields
+        }), 400
+    try:
+        if 'title' in data:
+            article.title = data['title']
+        if 'resume' in data:
+            article.resume = data['resume']
+        if 'content' in data:
+            article.content = data['content']
+        if 'doi' in data:
+            article.doi = data['doi']
+        if 'date' in data:
+            article.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        db.session.commit()
+        return jsonify({'message': 'Publicação atualizada com sucesso! '})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'message': 'Erro ao atualizar artigo',
+            'error': str(e)
+        }), 500
 # Rota para servir o index.html
 @app.route('/')
 def serve_home():
